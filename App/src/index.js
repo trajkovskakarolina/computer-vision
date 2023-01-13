@@ -1,5 +1,5 @@
 import React from "react";
-import ReactDOM from "react-dom";
+import ReactDOM, {render} from "react-dom";
 import MagicDropzone from "react-magic-dropzone";
 
 import "./styles.css";
@@ -13,7 +13,8 @@ class App extends React.Component {
   state = {
     model: null,
     preview: "",
-    predictions: []
+    predictions: [],
+    code: ''
   };
 
   componentDidMount() {
@@ -65,13 +66,15 @@ class App extends React.Component {
     const ctx = c.getContext("2d");
     this.cropToCanvas(e.target, c, ctx);
     let [modelWidth, modelHeight] = this.state.model.inputs[0].shape.slice(1, 3);
+    console.log("model width", modelWidth);
+    console.log("model height", modelHeight);
     const input = tf.tidy(() => {
       return tf.image.resizeBilinear(tf.browser.fromPixels(c), [modelWidth, modelHeight])
         .div(255.0).expandDims(0);
     });
     this.state.model.executeAsync(input).then(res => {
       // Font options.
-      const font = "16px sans-serif";
+      const font = "12px sans-serif";
       ctx.font = font;
       ctx.textBaseline = "top";
 
@@ -80,7 +83,7 @@ class App extends React.Component {
       const scores_data = scores.dataSync();
       const classes_data = classes.dataSync();
       const valid_detections_data = valid_detections.dataSync()[0];
-
+      
       tf.dispose(res)
 
       var i;
@@ -95,16 +98,29 @@ class App extends React.Component {
         const klass = names[classes_data[i]];
         const score = scores_data[i].toFixed(2);
 
+        //console.log('point'+i, x1 , y1);
+        //console.log('width'+i, width);
+        //console.log('class'+i, klass);
+        //console.log('score'+i, score);
+        
+        const arr = {class: klass, values : [x1,y1,width,height]};
+        this.state.predictions.push(arr);
+        
         // Draw the bounding box.
         ctx.strokeStyle = "#00FFFF";
         ctx.lineWidth = 4;
         ctx.strokeRect(x1, y1, width, height);
-
+        
+        //draw point 1
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x1, y1, width/8, height/8);
+        
         // Draw the label background.
         ctx.fillStyle = "#00FFFF";
         const textWidth = ctx.measureText(klass + ":" + score).width;
         const textHeight = parseInt(font, 10); // base 10
-        ctx.fillRect(x1, y1, textWidth + 4, textHeight + 4);
+        ctx.fillRect(x1, y1, textWidth + 2, textHeight + 2);
 
       }
       for (i = 0; i < valid_detections_data; ++i){
@@ -119,35 +135,125 @@ class App extends React.Component {
         ctx.fillText(klass + ":" + score, x1, y1);
 
       }
+      //console.log(this.state.predictions);
+      this.correct();
     });
   };
+  
+  correct = () => {
+    let dict = {};
+    
+    for(const elm of this.state.predictions){
+      if(elm.class==='if'){
+        dict['if']=[];
+        for(const elm2 of this.state.predictions){
+          if (elm2.class==='and' || elm2.class==='sad' || elm2.class==='cold'){
+            if (elm2.values[0]>elm.values[0] && 
+                elm2.values[0]<elm.values[0]+elm.values[2]/2 && 
+                elm2.values[1]>elm.values[1] &&
+                elm2.values[1]<elm.values[1]+elm.values[3]){
+              dict['if'].push(elm2.class);
+            }
+          }
+          if(elm2.class==='blanket' || elm2.class==='pet'){
+            if(elm2.values[0]>elm.values[0] && 
+                elm2.values[0]<elm.values[0]+elm2.values[2] &&
+                elm2.values[1]<elm.values[1]+elm.values[1]*(1/4) && 
+                elm2.values[1]>elm.values[1]-elm.values[1]*(1/4)){
+              dict['if'].push(elm2.class);
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(dict);
+    
+    let general = '';
+    
+    for (let i in dict){
+      if(i==='if') {
+        general += 'if (';
+        let tmp = '';
+        let condition = false;
+        for (let j in dict[i]){
+          //console.log(dict[i][j]);
+          if (dict[i][j]==='blanket') tmp += ' give blanket; '
+          else if (dict[i][j]==='pet') tmp += ' pet; '
+          else {
+            if (dict[i][j]!=='and' && condition===false) {
+                general += dict[i][j];
+                condition = true;
+            }
+            else if (dict[i][j]!=='and') general = general + ' and ' + dict[i][j] ;
+          }
+        }
+        general += ') : \n' + tmp;
+      }
+    }
+    
+    console.log('general: ', general);
+
+    this.setState({
+      code: general
+    });
+    
+    /*or (var i=0; i<this.state.predictions.length; i++){
+      console.log(this.state.predictions[i].class);
+      console.log(this.state.predictions[i].values);
+      if(this.state.predictions[i].class==='if'){
+        ifHere=true;
+        for (var j=0; j<this.state.predictions.length; j++){
+          if(this.state.predictions[j].class==='blanket'){
+            if (this.state.predictions[j].values[0]>this.state.predictions[i].values[0] &&
+                this.state.predictions[j].values[0]<this.state.predictions[i].values[0]+this.state.predictions[i].values[2] &&
+                this.state.predictions[j].values[1]<this.state.predictions[i].values[1]+this.state.predictions[i].values[3]*(3/4) &&
+                this.state.predictions[j].values[1]>this.state.predictions[i].values[1]-this.state.predictions[i].values[3]*(3/4)){
+              console.log('if blanket');
+            }
+                
+          }
+        }
+      }
+    }*/
+    
+  }
 
   render() {
     return (
-      <div className="Dropzone-page">
-        {this.state.model ? (
-          <MagicDropzone
-            className="Dropzone"
-            accept="image/jpeg, image/png, .jpg, .jpeg, .png"
-            multiple={false}
-            onDrop={this.onDrop}
-          >
-            {this.state.preview ? (
-              <img
-                alt="upload preview"
-                onLoad={this.onImageChange}
-                className="Dropzone-img"
-                src={this.state.preview}
-              />
-            ) : (
-              "Choose or drop a file."
-            )}
-            <canvas id="canvas" width="640" height="640" />
-          </MagicDropzone>
-        ) : (
-          <div className="Dropzone">Loading model...</div>
-        )}
-      </div>
+        <div>
+          <h1 className='title'>Recognition of tangible programming blocks (the pARt Blocks)</h1>
+          <div className='main-container'>
+            <div className="Dropzone-page">
+              {this.state.model ? (
+                  <MagicDropzone
+                      className="Dropzone"
+                      accept="image/jpeg, image/png, .jpg, .jpeg, .png"
+                      multiple={false}
+                      onDrop={this.onDrop}
+                  >
+                    {this.state.preview ? (
+                        <img
+                            alt="upload preview"
+                            onLoad={this.onImageChange}
+                            className="Dropzone-img"
+                            src={this.state.preview}
+                        />
+                    ) : (
+                        "Choose or drop a file."
+                    )}
+                    <canvas id="canvas" width="640" height="640" />
+                  </MagicDropzone>
+              ) : (
+                  <div className="Dropzone">Loading model...</div>
+              )}
+            </div>
+            <div style={{border: 'solid', padding:'30px', width: '40%', margin: '40px'}}>
+              {this.state.code}
+            </div>
+          </div>
+        </div>
+      
     );
   }
 }
