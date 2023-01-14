@@ -43,6 +43,7 @@ body {
 
 .Dropzone-page {
   margin: 40px;
+  margin-top: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -76,4 +77,5 @@ body {
   justify-content: center;
   text-align: center;
   margin-top: 10px;
+  white-space: pre-wrap;
 }

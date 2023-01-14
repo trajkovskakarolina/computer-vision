@@ -3,6 +3,8 @@ import ReactDOM, {render} from "react-dom";
 import MagicDropzone from "react-magic-dropzone";
 
 import "./styles.css";
+import giff from './dogs-clap.gif'
+
 const tf = require('@tensorflow/tfjs');
 
 const weights = '/best_web_model/model.json';
@@ -14,7 +16,8 @@ class App extends React.Component {
     model: null,
     preview: "",
     predictions: [],
-    code: ''
+    code: '',
+    correct: false
   };
 
   componentDidMount() {
@@ -142,6 +145,7 @@ class App extends React.Component {
   
   correct = () => {
     let dict = {};
+    let ifElse = false;
     
     for(const elm of this.state.predictions){
       if(elm.class==='if'){
@@ -157,10 +161,31 @@ class App extends React.Component {
           }
           if(elm2.class==='blanket' || elm2.class==='pet'){
             if(elm2.values[0]>elm.values[0] && 
-                elm2.values[0]<elm.values[0]+elm2.values[2] &&
-                elm2.values[1]<elm.values[1]+elm.values[1]*(1/4) && 
-                elm2.values[1]>elm.values[1]-elm.values[1]*(1/4)){
+                elm2.values[0]<elm.values[0]+elm.values[2] &&
+                elm2.values[1]<elm.values[1]+elm.values[3]*(1/4) && 
+                elm2.values[1]>elm.values[1]-elm.values[3]*(1/4)){
               dict['if'].push(elm2.class);
+            }
+          }
+          if(elm2.class==='else') {
+            if (elm2.values[0]>elm.values[0]-elm.values[2]*(1/4) &&
+                elm2.values[0]<elm.values[0]+elm.values[2]*(1/4) &&
+                elm2.values[1]>elm.values[1] &&
+                elm2.values[1]<elm.values[1]+elm.values[3]){
+              ifElse = true; //if and else are connected
+            }
+          }
+        }
+      }
+      else if (elm.class==='else'){
+        dict['else']=[];
+        for(const elm2 of this.state.predictions) {
+          if(elm2.class==='blanket' || elm2.class==='pet'){
+            if(elm2.values[0]>elm.values[0] &&
+                elm2.values[0]<elm.values[0]+elm.values[2] &&
+                elm2.values[1]<elm.values[1]+elm.values[3]*(1/4) &&
+                elm2.values[1]>elm.values[1]-elm.values[3]*(1/4)){
+              dict['else'].push(elm2.class);
             }
           }
         }
@@ -170,7 +195,7 @@ class App extends React.Component {
     console.log(dict);
     
     let general = '';
-    
+    let tmp2 = '';
     for (let i in dict){
       if(i==='if') {
         general += 'if (';
@@ -188,9 +213,19 @@ class App extends React.Component {
             else if (dict[i][j]!=='and') general = general + ' and ' + dict[i][j] ;
           }
         }
-        general += ') : \n' + tmp;
+        general += ') : \n' + tmp + '\n';
+        if (!ifElse) general += 'return;'
+      }
+      else if(i==='else'){
+        tmp2 += 'else : \n';
+        for (let j in dict[i]) {
+          if (dict[i][j]==='blanket') tmp2 += ' give blanket; '
+          else if (dict[i][j]==='pet') tmp2 += ' pet; '
+        }
       }
     }
+    general+=tmp2 + '\n';  //to assure else comes after if
+    general+= 'return;';
     
     console.log('general: ', general);
 
@@ -198,31 +233,23 @@ class App extends React.Component {
       code: general
     });
     
-    /*or (var i=0; i<this.state.predictions.length; i++){
-      console.log(this.state.predictions[i].class);
-      console.log(this.state.predictions[i].values);
-      if(this.state.predictions[i].class==='if'){
-        ifHere=true;
-        for (var j=0; j<this.state.predictions.length; j++){
-          if(this.state.predictions[j].class==='blanket'){
-            if (this.state.predictions[j].values[0]>this.state.predictions[i].values[0] &&
-                this.state.predictions[j].values[0]<this.state.predictions[i].values[0]+this.state.predictions[i].values[2] &&
-                this.state.predictions[j].values[1]<this.state.predictions[i].values[1]+this.state.predictions[i].values[3]*(3/4) &&
-                this.state.predictions[j].values[1]>this.state.predictions[i].values[1]-this.state.predictions[i].values[3]*(3/4)){
-              console.log('if blanket');
-            }
-                
-          }
-        }
-      }
-    }*/
-    
+    if (general === 'if (sad and cold) : \n' +
+        ' give blanket; \n' +
+        'else : \n' +
+        ' pet; \n' +
+        'return;'){
+      this.setState({
+        correct: true
+      });
+    }
+        
   }
 
   render() {
     return (
         <div>
           <h1 className='title'>Recognition of tangible programming blocks (the pARt Blocks)</h1>
+          <p className='title'>Student: Karolina Trajkovska     Class: Computer Vision</p>
           <div className='main-container'>
             <div className="Dropzone-page">
               {this.state.model ? (
@@ -248,8 +275,25 @@ class App extends React.Component {
                   <div className="Dropzone">Loading model...</div>
               )}
             </div>
-            <div style={{border: 'solid', padding:'30px', width: '40%', margin: '40px'}}>
-              {this.state.code}
+            <div style={{border: '.5px dashed', padding:'30px', width: '40%', margin: '40px', marginTop: '10px'}}>
+              <p>Please refresh the page before loading a new image</p>
+              <br/>
+              <p>Task: Anna is visiting the dog shelter. If the dogs are cold and sad, she should give them a blanket. 
+                Otherwise, she should pet them.</p>
+              <br/>  
+              <p>Code detected:</p>
+              <p style={{color: 'darkblue', whiteSpace: 'pre-wrap'}}>{this.state.code}</p>
+              <br/>
+              {this.state.correct ? (
+                  <div>
+                    <p>Task solved!</p>
+                    <img src={giff}/>
+                  </div>
+              ) : (
+                  <div>
+                    Task is not solved yet.
+                  </div>
+              )}
             </div>
           </div>
         </div>
