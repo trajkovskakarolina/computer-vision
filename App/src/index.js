@@ -21,6 +21,7 @@ class App extends React.Component {
   };
 
   componentDidMount() {
+    //MODEL LOADING
     tf.loadGraphModel(weights).then(model => {
       this.setState({
         model: model
@@ -28,8 +29,6 @@ class App extends React.Component {
     }).catch(err =>
         console.log(err)
     );
-    console.log('hfihdid');
-    console.log(this.state.model);
   }
   
   
@@ -100,11 +99,6 @@ class App extends React.Component {
         const height = y2 - y1;
         const klass = names[classes_data[i]];
         const score = scores_data[i].toFixed(2);
-
-        //console.log('point'+i, x1 , y1);
-        //console.log('width'+i, width);
-        //console.log('class'+i, klass);
-        //console.log('score'+i, score);
         
         const arr = {class: klass, values : [x1,y1,width,height]};
         this.state.predictions.push(arr);
@@ -114,7 +108,7 @@ class App extends React.Component {
         ctx.lineWidth = 4;
         ctx.strokeRect(x1, y1, width, height);
         
-        //draw point 1
+        //Draw 1 point
         ctx.strokeStyle = "#000000";
         ctx.lineWidth = 4;
         ctx.strokeRect(x1, y1, width/8, height/8);
@@ -237,7 +231,12 @@ class App extends React.Component {
         ' give blanket; \n' +
         'else : \n' +
         ' pet; \n' +
-        'return;'){
+        'return;' 
+        || general === 'if (cold and sad) : \n' +
+        ' give blanket; \n' +
+        'else : \n' +
+        ' pet; \n' +
+        'return;' ){
       this.setState({
         correct: true
       });
