@@ -225,7 +225,7 @@ class App extends React.Component {
       }
     }
     general+=tmp2 + '\n';  //to assure else comes after if
-    general+= 'return;';
+    if (ifElse || !('if' in dict)) general+= 'return;';
     
     console.log('general: ', general);
 
